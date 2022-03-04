@@ -12,6 +12,11 @@ raw_trees = pd.read_csv("data/processed_trees.csv")
 raw_trees["BLOOM_START"] = pd.to_datetime(raw_trees["BLOOM_START"], format="%d/%m/%Y")
 raw_trees["BLOOM_END"] = pd.to_datetime(raw_trees["BLOOM_END"], format="%d/%m/%Y")
 
+# Vancouver geojson
+url_geojson = "https://raw.githubusercontent.com/UBC-MDS/cherry_blossom_tracker/main/data/vancouver.geojson"
+data_geojson_remote = alt.Data(
+    url=url_geojson, format=alt.DataFormat(property="features", type="json")
+)
 
 # Build Front End
 app = Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -129,8 +134,52 @@ app.layout = html.Div(
                 ),
             ]
         ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        html.Iframe(
+                            id="density",
+                            style={
+                                "border-width": "0",
+                                "width": "100%",
+                                "height": "800px",
+                            },
+                        )
+                    ]
+                ),
+                dbc.Col(),
+            ]
+        ),
     ]
 )
+
+
+def density_map(df):
+    van_base = (
+        alt.Chart(data_geojson_remote)
+        .mark_geoshape(fill="lightgray")
+        .project(type="identity", reflectY=True)
+    )
+
+    plot_van = (
+        van_base
+        + alt.Chart(df)
+        .transform_lookup(
+            default="0",
+            as_="geo",
+            lookup="NEIGHBOURHOOD_NAME",
+            from_=alt.LookupData(data=data_geojson_remote, key="properties.name"),
+        )
+        .mark_geoshape()
+        .encode(
+            alt.Color("count()", scale=alt.Scale(scheme="redpurple")),
+            alt.Shape(field="geo", type="geojson"),
+            tooltip=["count()", "NEIGHBOURHOOD_NAME:N"],
+        )
+    ).project(type="identity", reflectY=True)
+
+    return plot_van.to_html()
 
 
 def bar_plot(trees_bar):
@@ -198,6 +247,7 @@ def timeline_plot(trees_timeline):
 @app.callback(
     Output("bar", "srcDoc"),
     Output("timeline", "srcDoc"),
+    Output("density", "srcDoc"),
     Input("picker_date", "start_date"),
     Input("picker_date", "end_date"),
     Input("filter_neighbourhood", "value"),
@@ -247,8 +297,9 @@ def main_callback(start_date, end_date, neighbourhood, cultivar, diameter_range)
 
     bar = bar_plot(filtered_trees)
     timeline = timeline_plot(filtered_trees)
+    density = density_map(filtered_trees)
 
-    return bar, timeline
+    return bar, timeline, density
 
 
 if __name__ == "__main__":
