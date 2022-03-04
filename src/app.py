@@ -3,6 +3,7 @@ import altair as alt
 from altair import datum
 from dash import Dash, html, dcc, Input, Output
 import dash_bootstrap_components as dbc
+import plotly.express as px
 from datetime import date
 
 alt.data_transformers.disable_max_rows()
@@ -148,11 +149,25 @@ app.layout = html.Div(
                         )
                     ]
                 ),
-                dbc.Col(),
+                dbc.Col(dcc.Graph(id="map")),
             ]
         ),
     ]
 )
+
+
+def street_map(df):
+    map_plot = px.scatter_mapbox(
+        df,
+        lat="lat",
+        lon="lon",
+        color_discrete_sequence=["fuchsia"],
+        zoom=10.8,
+        height=700,
+    )
+    map_plot.update_layout(mapbox_style="open-street-map")
+
+    return map_plot
 
 
 def density_map(df):
@@ -248,6 +263,7 @@ def timeline_plot(trees_timeline):
     Output("bar", "srcDoc"),
     Output("timeline", "srcDoc"),
     Output("density", "srcDoc"),
+    Output("map", "figure"),
     Input("picker_date", "start_date"),
     Input("picker_date", "end_date"),
     Input("filter_neighbourhood", "value"),
@@ -298,8 +314,9 @@ def main_callback(start_date, end_date, neighbourhood, cultivar, diameter_range)
     bar = bar_plot(filtered_trees)
     timeline = timeline_plot(filtered_trees)
     density = density_map(filtered_trees)
+    big_map = street_map(filtered_trees)
 
-    return bar, timeline, density
+    return bar, timeline, density, big_map
 
 
 if __name__ == "__main__":
